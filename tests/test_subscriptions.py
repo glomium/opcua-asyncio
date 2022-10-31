@@ -59,6 +59,7 @@ class MySubHandler2:
 
 class MySubHandlerCounter:
     def __init__(self):
+        self.changes_called = False
         self.datachange_count = 0
         self.event_count = 0
 
@@ -68,13 +69,20 @@ class MySubHandlerCounter:
     def event_notification(self, event):
         self.event_count += 1
 
+    def datachange_list_notifications(self, changes):
+        self.changes_called = True
+
 
 class MySubHandlerCounterAsync(MySubHandlerCounter):
+
     async def datachange_notification(self, node, val, data):
         self.datachange_count += 1
 
     async def event_notification(self, event):
         self.event_count += 1
+
+    async def datachange_list_notifications(self, changes):
+        self.changes_called = True
 
 
 async def test_subscription_failure(opc):
@@ -135,6 +143,7 @@ async def test_subscription_count(opc, handler_class):
         await var.write_value(val + 1)
     await sleep(0.2)  # let last event arrive
     assert nb + 1 == myhandler.datachange_count
+    assert myhandler.changes_called, f"{handler_class.__qualname__!r}.datachange_list_notifications was not called"
     await sub.delete()
     await opc.opc.delete_nodes([var])
 

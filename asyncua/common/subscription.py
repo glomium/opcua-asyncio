@@ -56,6 +56,12 @@ class SubHandler:
         """
         pass
 
+    def datachange_list_notifications(self, changes: List[Tuple]):
+        """
+        called once for every update from the server
+        """
+        pass
+
     def event_notification(self, event: ua.EventNotificationList):
         """
         called for every event notification from server
@@ -148,9 +154,23 @@ class Subscription:
                 self._handler.datachange_notification(*args) for args in known_handles_args
             ]
             if asyncio.iscoroutinefunction(self._handler.datachange_notification):
-                await asyncio.gather(*tasks)
+                results = await asyncio.gather(*tasks)
+            else:
+                results = tasks
         except Exception as ex:
             self.logger.exception("Exception calling data change handler. Error: %s", ex)
+            results = []
+
+        if results and hasattr(self._handler, "datachange_list_notifications"):
+            try:
+                # append the result to the args from datachange_notification
+                results = list(args + (result,) for args, result in zip(known_handles_args, results))
+                if asyncio.iscoroutinefunction(self._handler.datachange_list_notifications):
+                    await self._handler.datachange_list_notifications(results)
+                else:
+                    self._handler.datachange_list_notifications(results)
+            except Exception as ex:
+                self.logger.exception("Exception calling datachange_list_notifications on handler. Error: %s", ex)
 
     async def _call_event(self, eventlist: ua.EventNotificationList):
         for event in eventlist.Events:
